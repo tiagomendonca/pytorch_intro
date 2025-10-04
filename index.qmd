@@ -1,0 +1,438 @@
+---
+title: "An Introduction to PyTorch"
+format: html
+author:
+  name: "Tiago Mendonça dos Santos"
+  url: "https://tiagoms.com"
+---
+
+
+```{python}
+import pandas as pd
+import numpy as np
+import torch
+from plotnine import *
+
+
+# seed for random number generator
+torch.manual_seed(0)
+
+```
+
+## Essentials
+
+### What is a Tensor?
+
+In PyTorch, a tensor is the fundamental data structure. It can be thought of as a generalization of scalars, vectors, and matrices to any number of dimensions.
+
+1. A scalar is a single number (0D tensor).
+
+2. A vector is a 1D tensor.
+
+3. A matrix is a 2D tensor.
+
+4. Higher-dimensional tensors can represent more complex data such as images or batches of samples.
+
+Tensors are very similar to NumPy arrays, but with two key advantages:
+
+1. They integrate smoothly with PyTorch’s automatic differentiation (autograd).
+
+2. They can run on GPUs, making computations much faster.
+
+
+### Creating tensors
+
+```{python}
+# scalar (0D tensor)
+x = torch.tensor(1)
+print(x)
+```
+
+```{python}
+print(x.shape)
+```
+
+```{python}
+# vector (1D tensor)
+y = torch.tensor([1, 2])
+print(y)
+```
+
+```{python}
+print(y.shape)
+```
+
+```{python}
+# matrix (2D tensor)
+z = torch.tensor([[1, 2], [3, 4]])
+print(z)
+```
+
+```{python}
+print(z.shape)
+```
+
+
+### 3D tensors
+
+For example, here is a 3D tensor containing two 2×2 matrices:
+
+```{python}
+z = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+print(z)
+```
+
+```{python}
+print(z.shape)
+```
+
+
+### Indexing and Slicing
+
+Just like NumPy arrays, PyTorch tensors support indexing and slicing.
+
+```{python}
+z = torch.tensor([[1, 2, 3], [4, 5, 6]])
+
+print(z)
+```
+
+```{python}
+# access the element at row 0, column 1 
+#  (remember indexes start at 0)
+print(z[0, 1])
+```
+
+```{python}
+# the first row
+print(z[0])
+```
+
+```{python}
+# get the first column
+print(z[:, 0])
+```
+
+```{python}
+# get a submatrix (first two rows, last two columns)
+print(z[:2, 1:])
+
+```
+
+```{python}
+x = torch.tensor([[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]])
+
+# access the first "matrix" (index 0 along the first dimension)
+print(x[0])
+```
+
+```{python}
+# access the second "matrix" (index 1 along the first dimension)
+print(x[1])
+```
+
+```{python}
+# access the element at [0,1,2] (matrix 0, row 1, column 2)
+print(x[0, 1, 2])
+```
+
+```{python}
+# get the first row of each matrix
+print(x[:, 0, :])
+```
+
+```{python}
+# get the first column of each matrix
+print(x[:, :, 0])
+```
+
+```{python}
+# get all elements from the last two columns of each matrix
+print(x[:, :, 1:])
+```
+
+### Random Number Generators
+
+**Uniform distribution over $[0,1)$**
+
+```{python}
+# vector
+torch.rand(3)
+```
+
+```{python}
+# batch of 4 tensors with shape (1, 2)
+torch.rand((4, 1, 2))
+
+```
+
+
+**Standard normal distribution $\mathcal{N}(0,1)$**
+
+```{python}
+torch.randn((4, 1, 2))
+```
+
+
+## Basic Operations
+
+**Addition**
+
+```{python}
+torch.tensor([1, 2]) + torch.tensor([3, 4])
+```
+
+
+**Scalar multiplication**
+
+```{python}
+3 * torch.tensor([1, 2])
+
+```
+
+**Matrix multiplications**
+
+```{python}
+A = torch.tensor([[1, 2], [3, 4]])
+B = torch.tensor([[2, 0], [1, 3]])
+
+torch.matmul(A, B)
+```
+
+
+**Batch Matrix Multiplication**
+
+If the first tensor is made of 4 matrices of shape 2×3, and the second tensor is 4 matrices of shape 3×6, then the result will be 4 matrices of shape 2×6:
+
+```{python}
+
+torch.matmul(torch.rand((4, 2, 3)), torch.rand((4, 3, 6)))
+
+```
+
+
+## Example
+
+This example is adapted from **Chapter 2: Mathematical Preliminaries** of [*Alice’s Adventures in a Differentiable Wonderland*](https://www.sscardapane.it/).
+
+
+Implementing a gradient descent algorithm To become proficient with all three frameworks (NumPy,
+JAX, PyTorch), I suggest to replicate the exercise below thrice – each variant should only take a few minutes if you know the syntax. Consider a 2D function $f(\mathbf{x}), \mathbf{x} \sim(2)$, where we take the domain to be $[0, 10]$:
+
+$$
+f(\mathbf{x}) = \sin(x_1)\cos(x_2) + \sin(0.5x_1)\cos(0.5x_2)
+$$
+
+
+
+Before proceeding in the book, repeat this for each framework:
+
+1. Implement the function in a **vectorized** way, i.e., given a matrix $\mathbf{X} \sim (n, 2)$ of $n$ inputs, it should return a vector $f(\mathbf{X}) \sim (n)$ where $[f(\mathbf{X})]_i = f(\mathbf{X}_i)$.
+
+2. Implement another function to compute its gradient (hard-coded – we have not touched automatic
+differentiation yet).
+
+3. Write a basic gradient descent procedure and visualize the paths taken by the optimization process
+from multiple starting points.
+
+4. Try adding a momentum term and visualizing the norm of the gradients, which should converge to zero as the algorithm moves towards a stationary point.
+
+If you are using JAX or PyTorch to solve the exercise, point (3) is a good place to experiment with vmap for vectorizing a function.
+
+**Solution**
+
+1. To implement a function in a vectorized way we can do as follows
+
+```{python}
+def f(X):
+    x1 = X[:, 0]; x2 = X[:, 1]
+    return torch.sin(x1) * torch.cos(x2) + torch.sin(0.5 * x1) * torch.cos(0.5 * x2)
+
+X = torch.rand((4, 2))
+print(X)
+```
+
+
+```{python}
+f(X)
+```
+
+
+```{python}
+#| echo: false
+
+x1 = torch.linspace(0, 10, 101)
+x2 = torch.linspace(0, 10, 101)
+
+X1, X2 = torch.meshgrid(x1, x2, indexing = "ij")
+
+# Empilha as combinações em um array (n,2)
+X = torch.stack([X1.flatten(), X2.flatten()], dim=1)
+
+# Calcula f em todos os pontos
+Y = f(X)
+
+X[:,1].numpy()
+
+# Cria o DataFrame
+df = pd.DataFrame({
+    "x1": X[:, 0].tolist(),
+    "x2": X[:, 1].tolist(),
+    "f": Y.tolist()
+})
+
+df.head()
+
+p = (
+    ggplot(df, aes("x1", "x2", fill="f"))
+    + geom_tile()
+    + scale_fill_continuous(cmap_name="plasma")
+    + coord_cartesian(expand=False)
+)
+
+
+p
+
+```
+
+2. To implement the gradient we will calculate the partial derivative of $x_1$ and $x_2$.
+
+$$
+\begin{aligned}
+\frac{\partial f}{\partial x_1} = \cos(x_1)\cos(x_2) + 0.5\cos(0.5x_1)\cos(0.5x_2) \\
+\frac{\partial f}{\partial x_2} = -\sin(x_1)\sin(x_2) -0.5\sin(0.5x_1)\sin(0.5x_2)
+\end{aligned}
+$$
+
+
+$$
+\nabla f(\mathbf{X}) = \bigg[\frac{\partial f}{\partial x_1} ,  \frac{\partial f}{\partial x_2}\bigg]
+$$
+
+
+
+```{python}
+def grad_f(X):
+    x1 = X[0]; x2 = X[1]
+    d_x1 = torch.cos(x1) * torch.cos(x2) + 0.5 * torch.cos(0.5 * x1) * torch.cos(0.5 * x2)
+    d_x2 = -torch.sin(x1) * torch.sin(x2) - 0.5 * torch.sin(0.5 * x1) * torch.sin(0.5 * x2)
+    return torch.stack((d_x1, d_x2))
+
+grad_f(torch.rand(2))
+
+```
+
+
+3. Write a basic gradient descent procedure and visualize the paths taken by the optimization process
+from multiple starting points.
+
+
+```{python}
+
+def optim(X_0, eta=0.1, nsteps=100):
+
+    t = torch.zeros(nsteps + 1, 2)
+    t[0] = X_0
+
+    for i in range(1, nsteps + 1):
+        g = grad_f(t[i - 1])
+        t[i] = t[i - 1] - eta * g
+    return t
+
+torch.manual_seed(0)
+
+path = optim(X_0 = 10 * torch.rand(2), eta = 0.01, nsteps = 10_000)
+
+```
+
+
+
+```{python}
+#| echo: false
+
+torch.manual_seed(654)
+
+path2 = optim(X_0 = 10 * torch.rand(2), eta = 0.01, nsteps = 10_000)
+path3 = optim(X_0 = 10 * torch.rand(2), eta = 0.01, nsteps = 10_000)
+path4 = optim(X_0 = 10 * torch.rand(2), eta = 0.01, nsteps = 10_000)
+path5 = optim(X_0 = 10 * torch.rand(2), eta = 0.01, nsteps = 10_000)
+
+
+
+df_path  = pd.DataFrame(path.detach().cpu().tolist(), columns=["x1", "x2"])
+df_path2 = pd.DataFrame(path2.detach().cpu().tolist(), columns=["x1", "x2"])
+df_path3 = pd.DataFrame(path3.detach().cpu().tolist(), columns=["x1", "x2"])
+df_path4 = pd.DataFrame(path4.detach().cpu().tolist(), columns=["x1", "x2"])
+df_path5 = pd.DataFrame(path5.detach().cpu().tolist(), columns=["x1", "x2"])
+
+
+path1 = pd.DataFrame([{
+    "x1": path[-1][0].item(),
+    "x2": path[-1][1].item()
+}])
+
+
+p = (
+    ggplot(df, aes("x1", "x2"))
+    + geom_tile(aes(fill="f"))
+    + scale_fill_continuous(cmap_name="plasma")
+    + coord_cartesian(expand=False)
+)
+
+
+
+p + geom_point(data = df_path.tail(1), mapping = aes(x = "x1", y = "x2"), size = 4, color="red")
+ 
+
+```
+
+
+```{python}
+#| echo: false
+
+p = p + geom_path(
+    data=df_path,
+    mapping=aes(x="x1", y="x2"),
+    color="white",
+    size=0.7,
+    alpha=0.9,
+    inherit_aes=False
+)
+
+p = p + geom_path(
+    data=df_path2,
+    mapping=aes(x="x1", y="x2"),
+    color="white",
+    size=0.7,
+    alpha=0.9,
+    inherit_aes=False
+)
+
+p = p + geom_path(
+    data=df_path3,
+    mapping=aes(x="x1", y="x2"),
+    color="white",
+    size=0.7,
+    alpha=0.9,
+    inherit_aes=False
+)
+
+p = p + geom_path(
+    data=df_path4,
+    mapping=aes(x="x1", y="x2"),
+    color="white",
+    size=0.7,
+    alpha=0.9,
+    inherit_aes=False
+)
+
+p = p + geom_path(
+    data=df_path5,
+    mapping=aes(x="x1", y="x2"),
+    color="white",
+    size=0.7,
+    alpha=0.9,
+    inherit_aes=False
+)
+p
+```
